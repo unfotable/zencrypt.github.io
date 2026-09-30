@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ZENCRYPT — Private File Vault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #05050A;
+    --panel: #0E0E2A;
+    --panel-2: #141450;
+    --hair: rgba(45,45,200,0.22);
+    --hair-strong: rgba(60,60,220,0.42);
+    --gold: #111184;
+    --gold-bright: #4646E8;
+    --text: #E7E7F4;
+    --text-dim: #8C8CB8;
+    --text-faint: #4D4D80;
+    --danger: #D14747;
+    --radius: 2px;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --ink: #05050A; --panel: #0E0E2A; --panel-2: #141450; --text: #E7E7F4; --text-dim: #8C8CB8;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    background-image:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(17,17,132,0.28), transparent 60%);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .mono { font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif; }
+
+  /* ---------- Header ---------- */
+  header {
+    padding: 22px clamp(20px, 5vw, 48px);
+    padding-top: calc(22px + env(safe-area-inset-top, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--hair);
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 20px;
+    letter-spacing: 0.02em;
+    font-weight: 500;
+  }
+  .brand .mark { color: var(--gold-bright); font-style: italic; }
+  .brand .tag {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
+  }
+  #lockBadge {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #lockBadge .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-faint);
+  }
+  #lockBadge.unlocked .dot { background: var(--gold-bright); box-shadow: 0 0 8px var(--gold-bright); }
+
+  main { flex: 1; display: flex; flex-direction: column; }
+
+  /* ---------- Lock screen (home) ---------- */
+  #lockScreen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .preview-wrap { flex: 1; overflow-y: auto; padding: 32px clamp(20px, 5vw, 48px) 24px; }
+  .preview-head { max-width: 520px; margin-bottom: 26px; }
+  .preview-head h1 { font-size: 24px; font-weight: 500; margin: 0 0 8px; letter-spacing: 0.01em; }
+  .preview-head p.sub { color: var(--text-dim); font-size: 14px; margin: 0; line-height: 1.6; }
+  .preview-ledger { max-width: 720px; }
+  #previewFileList .ledger-row { cursor: pointer; }
+  #previewFileList .ledger-row:hover { border-color: transparent; background: rgba(201,167,63,0.04); }
+  #previewFileList .row-actions .icon-btn { pointer-events: none; opacity: 0.7; }
+  #previewEmpty {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+    padding: 30px 20px;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .unlock-bar {
+    flex-shrink: 0;
+    border-top: 1px solid var(--hair-strong);
+    background: var(--panel);
+    padding: 14px clamp(16px, 5vw, 48px);
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .unlock-bar .lock-icon { flex-shrink: 0; width: 30px; height: 30px; border: 1px solid var(--hair-strong); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .unlock-bar .lock-icon svg { width: 13px; height: 13px; }
+  .unlock-row { flex: 1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .unlock-row input[type="password"] { flex: 1; min-width: 140px; }
+  #lockError {
+    width: 100%;
+    color: var(--danger);
+    font-family: 'Inter', sans-serif;
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+  }
+
+  .field { text-align: left; }
+  .field label {
+    display: block;
+    font-family: 'Inter', sans-serif;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  input[type="password"], input[type="text"] {
+    background: var(--panel-2);
+    border: 1px solid var(--hair-strong);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 10px 12px;
+    letter-spacing: 0.05em;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  input[type="password"]:focus, input[type="text"]:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(201,167,63,0.12);
+  }
+  .btn {
+    background: var(--gold);
+    color: #F2F2FF;
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--gold-bright); }
+  .btn:active { transform: scale(0.985); }
+  .btn:focus-visible, input:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--hair-strong);
+    color: var(--text-dim);
+  }
+  .btn-ghost:hover { border-color: var(--gold); color: var(--text); }
+  .unlock-bar.shake { animation: shake 0.36s ease; }
+  @keyframes shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+  }
+
+  /* ---------- Vault (dashboard) ---------- */
+  #vault { display: none; flex: 1; flex-direction: column; }
+  .vault-header {
+    padding: 36px clamp(20px, 5vw, 48px) 24px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .vault-header h2 { font-size: 22px; font-weight: 500; margin: 0 0 6px; }
+  .vault-header .meta {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+  #dropZone {
+    margin: 0 clamp(20px, 5vw, 48px) 8px;
+    border: 1px dashed var(--hair-strong);
+    border-radius: var(--radius);
+    padding: 26px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  #dropZone:hover, #dropZone.drag { border-color: var(--gold); background: rgba(201,167,63,0.05); }
+  #dropZone .mono { font-size: 11.5px; color: var(--text-faint); display: block; margin-top: 6px; }
+  #fileInput { display: none; }
+
+  .ledger-wrap { flex: 1; padding: 28px clamp(20px, 5vw, 48px) 60px; overflow-x: auto; }
+  .ledger-head, .ledger-row {
+    display: grid;
+    grid-template-columns: 1fr 110px 170px 90px;
+    gap: 16px;
+    align-items: center;
+    min-width: 520px;
+  }
+  .ledger-head {
+    font-family: 'Inter', sans-serif;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--hair-strong);
+  }
+  .ledger-row {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--hair);
+    font-size: 14.5px;
+  }
+  .ledger-row .fname { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+  .ledger-row .fname span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ledger-row .fsize, .ledger-row .fdate { font-family: 'Inter', sans-serif; font-size: 12px; color: var(--text-dim); }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .icon-btn {
+    background: none; border: 1px solid var(--hair-strong); color: var(--text-dim);
+    border-radius: var(--radius); padding: 6px 10px; font-family: 'Inter', sans-serif;
+    font-size: 11px; cursor: pointer; transition: all 0.15s ease;
+  }
+  .icon-btn:hover { border-color: var(--gold); color: var(--gold-bright); }
+  .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+  #emptyState {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13.5px;
+    padding: 50px 20px;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .file-glyph { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.6; }
+
+  footer {
+    padding: 18px clamp(20px, 5vw, 48px);
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--hair);
+    font-family: 'Inter', sans-serif;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="mark">Z</span>encrypt <span class="tag">/ vault</span></div>
+  <div id="lockBadge"><span class="dot"></span><span id="lockBadgeText">locked</span></div>
+</header>
+
+<main>
+  <section id="lockScreen">
+    <div class="preview-wrap">
+      <div class="preview-head">
+        <h1>Your vault is sealed.</h1>
+        <p class="sub">These are the files stored on this device. Unlock below to open, download, or add more.</p>
+      </div>
+      <div class="preview-ledger">
+        <div class="ledger-head">
+          <div>NAME</div><div>SIZE</div><div>ADDED</div><div></div>
+        </div>
+        <div id="previewFileList"></div>
+        <div id="previewEmpty">No files yet — the vault is empty.</div>
+      </div>
+    </div>
+
+    <div class="unlock-bar" id="unlockBar">
+      <div class="lock-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#4646E8" stroke-width="1.4"><rect x="5" y="10" width="14" height="10" rx="1"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      </div>
+      <div class="unlock-row">
+        <input type="password" id="pwInput" autocomplete="off" placeholder="Enter passphrase" />
+        <button class="btn" id="unlockBtn">UNLOCK</button>
+        <div id="lockError"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="vault">
+    <div class="vault-header">
+      <div>
+        <h2>Your files</h2>
+        <div class="meta" id="vaultMeta">0 files stored</div>
+      </div>
+      <button class="btn btn-ghost" id="lockBtn" style="width:auto;">SEAL VAULT</button>
+    </div>
+
+    <div id="dropZone">
+      Click or drop a file to store it
+      <span class="mono">Stored locally in this browser, on this device</span>
+    </div>
+    <input type="file" id="fileInput" multiple />
+
+    <div class="ledger-wrap">
+      <div class="ledger-head">
+        <div>NAME</div><div>SIZE</div><div>ADDED</div><div></div>
+      </div>
+      <div id="fileList"></div>
+      <div id="emptyState">No files yet — the vault is empty.</div>
+    </div>
+  </section>
+</main>
+
+<footer>ZENCRYPT — files are stored only in this browser's local storage, not on a server.</footer>
+
+<script>
+(function () {
+  const PASSPHRASE = "devwillbethere";
+  const DB_NAME = "zencrypt_db";
+  const STORE = "files";
+  let db = null;
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const idb = req.result;
+        if (!idb.objectStoreNames.contains(STORE)) {
+          idb.createObjectStore(STORE, { keyPath: "id" });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function tx(mode) { return db.transaction(STORE, mode).objectStore(STORE); }
+
+  function addFile(record) {
+    return new Promise((resolve, reject) => {
+      try {
+        const r = tx("readwrite").put(record);
+        r.onsuccess = () => resolve();
+        r.onerror = () => reject(r.error);
+      } catch (e) { reject(e); }
+    });
+  }
+  function getAllFiles() {
+    return new Promise((resolve, reject) => {
+      try {
+        const r = tx("readonly").getAll();
+        r.onsuccess = () => resolve(r.result || []);
+        r.onerror = () => reject(r.error);
+      } catch (e) { resolve([]); }
+    });
+  }
+  function deleteFile(id) {
+    return new Promise((resolve, reject) => {
+      try {
+        const r = tx("readwrite").delete(id);
+        r.onsuccess = () => resolve();
+        r.onerror = () => reject(r.error);
+      } catch (e) { reject(e); }
+    });
+  }
+
+  function fmtSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+  function fmtDate(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" }) + " · " +
+           d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+
+  const lockScreen = document.getElementById("lockScreen");
+  const vault = document.getElementById("vault");
+  const pwInput = document.getElementById("pwInput");
+  const unlockBtn = document.getElementById("unlockBtn");
+  const lockError = document.getElementById("lockError");
+  const lockBtn = document.getElementById("lockBtn");
+  const lockBadge = document.getElementById("lockBadge");
+  const lockBadgeText = document.getElementById("lockBadgeText");
+  const dropZone = document.getElementById("dropZone");
+  const fileInput = document.getElementById("fileInput");
+  const fileList = document.getElementById("fileList");
+  const emptyState = document.getElementById("emptyState");
+  const vaultMeta = document.getElementById("vaultMeta");
+  const unlockBar = document.getElementById("unlockBar");
+  const previewFileList = document.getElementById("previewFileList");
+  const previewEmpty = document.getElementById("previewEmpty");
+
+  const fileGlyph = '<svg class="file-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+
+  async function refreshList() {
+    let files = [];
+    try { files = await getAllFiles(); } catch (e) { files = []; }
+    files.sort((a, b) => b.addedAt - a.addedAt);
+    vaultMeta.textContent = files.length + (files.length === 1 ? " file stored" : " files stored");
+    if (files.length === 0) {
+      emptyState.style.display = "block";
+      fileList.innerHTML = "";
+      return;
+    }
+    emptyState.style.display = "none";
+    fileList.innerHTML = files.map(f => `
+      <div class="ledger-row" data-id="${f.id}">
+        <div class="fname">${fileGlyph}<span>${escapeHtml(f.name)}</span></div>
+        <div class="fsize">${fmtSize(f.size)}</div>
+        <div class="fdate">${fmtDate(f.addedAt)}</div>
+        <div class="row-actions">
+          <button class="icon-btn" data-action="download" data-id="${f.id}">GET</button>
+          <button class="icon-btn danger" data-action="delete" data-id="${f.id}">DEL</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  async function refreshPreview() {
+    let files = [];
+    try { files = await getAllFiles(); } catch (e) { files = []; }
+    files.sort((a, b) => b.addedAt - a.addedAt);
+    if (files.length === 0) {
+      previewEmpty.style.display = "block";
+      previewFileList.innerHTML = "";
+      return;
+    }
+    previewEmpty.style.display = "none";
+    previewFileList.innerHTML = files.map(f => `
+      <div class="ledger-row">
+        <div class="fname">${fileGlyph}<span>${escapeHtml(f.name)}</span></div>
+        <div class="fsize">${fmtSize(f.size)}</div>
+        <div class="fdate">${fmtDate(f.addedAt)}</div>
+        <div class="row-actions"><button class="icon-btn">LOCKED</button></div>
+      </div>
+    `).join("");
+  }
+
+  previewFileList.addEventListener("click", () => {
+    pwInput.focus();
+  });
+
+  fileList.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".icon-btn");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (btn.dataset.action === "delete") {
+      try { await deleteFile(id); await refreshList(); await refreshPreview(); } catch (err) {}
+    } else if (btn.dataset.action === "download") {
+      try {
+        const files = await getAllFiles();
+        const f = files.find(x => x.id === id);
+        if (!f) return;
+        const a = document.createElement("a");
+        a.href = f.dataUrl;
+        a.download = f.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (err) {}
+    }
+  });
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function handleFiles(fileListObj) {
+    for (const file of Array.from(fileListObj)) {
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        await addFile({
+          id: Date.now() + "_" + Math.random().toString(36).slice(2, 9),
+          name: file.name,
+          size: file.size,
+          addedAt: Date.now(),
+          dataUrl
+        });
+      } catch (e) { /* skip file on error */ }
+    }
+    await refreshList();
+    await refreshPreview();
+  }
+
+  dropZone.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", (e) => { if (e.target.files.length) handleFiles(e.target.files); fileInput.value = ""; });
+  dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("drag"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag"));
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("drag");
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+
+  function unlock() {
+    if (pwInput.value === PASSPHRASE) {
+      lockScreen.style.display = "none";
+      vault.style.display = "flex";
+      lockBadge.classList.add("unlocked");
+      lockBadgeText.textContent = "unlocked";
+      pwInput.value = "";
+      lockError.textContent = "";
+      refreshList();
+    } else {
+      lockError.textContent = "Incorrect passphrase. Try again.";
+      unlockBar.classList.add("shake");
+      setTimeout(() => unlockBar.classList.remove("shake"), 380);
+    }
+  }
+
+  unlockBtn.addEventListener("click", unlock);
+  pwInput.addEventListener("keydown", (e) => { if (e.key === "Enter") unlock(); });
+
+  lockBtn.addEventListener("click", () => {
+    vault.style.display = "none";
+    lockScreen.style.display = "flex";
+    lockBadge.classList.remove("unlocked");
+    lockBadgeText.textContent = "locked";
+    pwInput.focus();
+  });
+
+  openDB().then(idb => { db = idb; refreshPreview(); }).catch(() => {});
+  pwInput.focus();
+})();
+</script>
+</body>
+</html>
